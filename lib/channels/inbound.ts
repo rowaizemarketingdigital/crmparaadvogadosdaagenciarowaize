@@ -18,7 +18,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { CHANNEL_PROVIDER_ZERNIO } from "./capabilities";
+import { CHANNEL_PROVIDER_UAZAPI, CHANNEL_PROVIDER_ZERNIO } from "./capabilities";
 import { sincronizarSaudeDaConexao } from "./health";
 import {
   atualizarEspelhoDoTemplate,
@@ -29,6 +29,8 @@ import {
 import { aplicarEdicaoZernio, ingestZernioInbound } from "./zernio/ingest";
 import { lerEnvelopeZernio } from "./zernio/envelope";
 import { parseZernioEdicao, verifyZernioSignature } from "./zernio/webhook";
+import { handleUazapiEvent } from "./uazapi/ingest";
+import { verifyUazapiSecret } from "./uazapi/webhook";
 import type { ChannelProvider } from "./types";
 
 /** Curto demais para ser segredo — placeholder ou lixo de decrypt. */
@@ -70,7 +72,7 @@ export type InboundWebhookOutcome =
  * trabalho — e respondido sem nomear provider do lado de fora.
  */
 export function acceptsInboundWebhook(provider: string): boolean {
-  return provider === CHANNEL_PROVIDER_ZERNIO;
+  return provider === CHANNEL_PROVIDER_ZERNIO || provider === CHANNEL_PROVIDER_UAZAPI;
 }
 
 export async function handleInboundWebhook(
@@ -82,11 +84,54 @@ export async function handleInboundWebhook(
   switch (provider) {
     case CHANNEL_PROVIDER_ZERNIO:
       return zernioInbound(admin, input);
+    case CHANNEL_PROVIDER_UAZAPI:
+      return uazapiInbound(admin, input);
     default:
       // Token de um canal que não entra por aqui. É configuração trocada, não
       // ataque — mas processar seria ler o payload com o parser errado.
       return { ok: false, code: "provider_mismatch", message: "canal não recebe por esta rota" };
   }
+}
+
+/**
+ * ⚠️ A UAZAPI, no Studio CRM (referência real), historicamente também aceita
+ * o segredo via `?secret=` na URL. Esta rota só olha o header
+ * `x-webhook-secret` — decisão deliberada (query string acaba em log de
+ * acesso de proxy, header não) para a URL que ESTA instalação vai registrar
+ * na instância. Se um dia for preciso aceitar instância já configurada com
+ * `?secret=` de fora, o campo teria que vir até aqui pela rota, que hoje só
+ * repassa headers e corpo.
+ */
+async function uazapiInbound(
+  admin: SupabaseClient,
+  input: InboundWebhookInput,
+): Promise<InboundWebhookOutcome> {
+  if (!input.secret || input.secret.length < MIN_SECRET_LEN) {
+    return { ok: false, code: "unauthorized", message: "webhook_secret_unavailable" };
+  }
+  if (!verifyUazapiSecret(input.headers.get("x-webhook-secret"), input.secret)) {
+    return { ok: false, code: "unauthorized", message: "bad_secret" };
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(input.rawBody);
+  } catch {
+    return { ok: false, code: "invalid_json", message: "invalid_json" };
+  }
+
+  const r = await handleUazapiEvent(
+    admin,
+    {
+      id: input.session.id,
+      organization_id: input.session.organization_id,
+      display_name: input.session.display_name,
+      phone_number: input.session.phone_number,
+    },
+    payload,
+    crypto.randomUUID(),
+  );
+  return { ok: true, body: { ...r } };
 }
 
 async function zernioInbound(
