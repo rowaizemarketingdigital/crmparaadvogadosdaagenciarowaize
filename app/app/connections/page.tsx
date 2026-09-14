@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { ConexoesShell } from "@/components/connections/ConexoesShell";
+import { uazapiBaseUrl } from "@/lib/channels/uazapi/credentials";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,9 @@ export default async function ConnectionsPage() {
   }
   const idioma = user.idioma;
 
-  const key = process.env.WAHA_API_KEY;
-  const wahaConfigured = Boolean(
-    process.env.WAHA_API_BASE_URL && key && key !== "dev_plaintext_change_me",
-  );
+  // Prop `wahaConfigured` preservado (mesma tela, `ConexoesShell` não mudou) —
+  // motor do canal por QR agora é a UAZAPI.
+  const wahaConfigured = !!uazapiBaseUrl() && !!process.env.UAZAPI_ADMIN_TOKEN?.trim();
 
   return (
     <div className="flex h-full flex-col gap-6 p-6">

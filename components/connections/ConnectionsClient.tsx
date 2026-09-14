@@ -268,17 +268,10 @@ export function ConnectionsClient({ wahaConfigured }: { wahaConfigured: boolean 
         <div className="rounded-md border border-warning bg-warning-bg p-4 text-sm text-warning-fg">
           <p className="font-medium">{t("O serviço do WhatsApp não está configurado.")}</p>
           <p className="mt-1">
-            {t("Faltam o endereço e a chave do serviço (")}
-            <code>WAHA_API_BASE_URL</code> {t("e")} <code>WAHA_API_KEY</code>
+            {t("Faltam o endereço e o token de administrador da UAZAPI (")}
+            <code>UAZAPI_BASE_URL</code> {t("e")} <code>UAZAPI_ADMIN_TOKEN</code>
             {t(
-              ") nas variáveis de ambiente desta instalação. Enquanto isso, não dá para conectar, reconectar nem excluir os números pareados por QR — excluir um número também o desconecta do aparelho, e sem o serviço isso não acontece.",
-            )}
-          </p>
-          <p className="mt-1">
-            {t("Se você roda tudo na mesma máquina, o container sobe com")}{" "}
-            <code>docker compose up -d waha</code>
-            {t(
-              ". Já apareceu aqui o caso oposto: o container no ar e o endereço configurado apontando para um lugar que não existe — subir o container de novo não conserta isso.",
+              ") nas variáveis de ambiente desta instalação. Enquanto isso, não dá para conectar, reconectar nem excluir os números pareados por QR — excluir um número também revoga o acesso ao webhook, e sem o serviço isso não acontece.",
             )}
           </p>
         </div>

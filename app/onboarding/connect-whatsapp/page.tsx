@@ -1,7 +1,7 @@
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 import { metaPodeReceber } from "@/lib/channels/meta/webhook";
-import { getWahaClient } from "@/lib/waha/client";
+import { uazapiBaseUrl } from "@/lib/channels/uazapi/credentials";
 import { ConnectWhatsappClient } from "./_client";
 import { traduzir } from "@/lib/i18n/dicionario";
 
@@ -13,7 +13,10 @@ export default async function ConnectWhatsappPage() {
   if (!activeOrg) redirect("/login");
   const idioma = user.idioma;
 
-  const wahaConfigured = getWahaClient() !== null;
+  // Mesmo prop `wahaConfigured` de sempre (a tela não muda de nome) — só o
+  // que ele responde trocou: motor do canal por QR agora é a UAZAPI, então a
+  // pergunta virou "a instalação tem token de admin da UAZAPI configurado?".
+  const wahaConfigured = !!uazapiBaseUrl() && !!process.env.UAZAPI_ADMIN_TOKEN?.trim();
 
   // Receber pelo canal oficial exige DOIS segredos, não um — a regra e o porquê
   // moram em `lib/channels/meta/webhook.ts`, ao lado de quem os consome.

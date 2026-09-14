@@ -2,48 +2,41 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
 /**
  * POST /api/v1/channel-sessions/[id]/reconnect — reconecta um canal caído.
  *
- * Dois modos, porque "caiu" tem duas causas com custos bem diferentes:
+ * Mesma tela e mesmo contrato de sempre (`ConnectionsClient.tsx` não mudou) —
+ * o motor trocou de WAHA pra UAZAPI.
  *
- *  - PADRÃO (stop + start): soluço de rede, container reiniciado, sessão que
- *    parou sozinha. As credenciais em `/app/.sessions` continuam válidas e o
- *    engine volta sozinho para WORKING — sem QR, sem incomodar o usuário.
- *  - `{ force: true }` (stop + LOGOUT + start): o aparelho foi desvinculado
- *    pelo celular e o WhatsApp revogou a credencial. Aí o start comum
- *    reaproveita uma credencial morta e a sessão vai direto para FAILED, sem
- *    NUNCA passar por SCAN_QR_CODE — era exatamente esse o buraco em que a tela
- *    ficava presa esperando um QR que nunca vinha. O logout descarta a
- *    credencial e o pareamento recomeça do zero.
+ * ⚠️ O modo `{ force: true }` (que no WAHA fazia logout explícito antes de
+ * religar, pra descartar credencial morta) hoje se comporta IGUAL ao modo
+ * suave: os dois chamam `provisionUazapiInstance` reaproveitando o token da
+ * instância. Não achei, lendo o Studio CRM, um endpoint de "invalidar sessão
+ * e forçar reescaneamento" equivalente ao logout do WAHA — `instance/connect`
+ * já devolve um QR novo quando a sessão não está mais pareada, então na
+ * prática o soft já resolve o caso que o force existia pra cobrir. Ficou
+ * documentado aqui, não escondido.
  *
- * O padrão é o modo suave de propósito: forçar logout sempre custaria um
- * reescaneamento a cada queda passageira. A UI só oferece o `force` depois que
- * o modo suave falhou.
- *
- * Canal EXCLUÍDO (arquivado) é recusado, não reconectado: subir a sessão de novo
- * no transporte devolveria um canal que recebe e não entrega nada — o webhook, o
- * ingest e o envio filtram `archived_at` e descartariam tudo. Vivo e surdo é pior
- * que desligado. E não há o que "reconectar": a exclusão deslogou o aparelho e
- * apagou a sessão no transporte, então o caminho de volta é conectar um número
- * (que também é o que a mensagem de erro diz).
- *
- * Canal OFICIAL é recusado por outro motivo, e com outro desfecho (422): ele não
- * tem sessão no transporte para parar e subir — `waha_session_name` é NULL nele
- * por CHECK. Reiniciar não é a operação dele; trocar a credencial é.
+ * Canal EXCLUÍDO (arquivado) é recusado — mesma razão de sempre: reviveria um
+ * canal que recebe e não entrega nada.
  *
  * Admin only. organization_id vem da sessão — nunca do path/body.
  */
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { assertWahaConnectionIdle, ChannelConnectionError } from "@/lib/channels/connect-waha";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mfaEmDivida } from "@/lib/auth/server";
 import { audit } from "@/lib/audit";
 import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
+import {
+  UAZAPI_CHANNEL_LABEL,
+  provisionUazapiInstance,
+  saveUazapiSession,
+} from "@/lib/channels/uazapi/connect";
+import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
-import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
+import { encryptWebhookSecret, decryptWebhookSecret } from "@/lib/webhooks/secrets";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -87,16 +80,17 @@ export async function POST(
       .eq("organization_id", activeOrg.orgId)
       .eq("id", id)
       .maybeSingle();
-  // Tolerante à coluna ausente: num clone sem a migration 0106 nada está
-  // arquivado, e exigir a coluna aqui derrubaria a reconexão inteira — que é o
-  // socorro de quem está com o número fora do ar.
   const { data: sessionRaw } = await queryTolerantToMissingArchived(
-    () => buscar(`id, waha_session_name, ${ARCHIVED_AT}`),
-    () => buscar("id, waha_session_name"),
+    () => buscar(`id, provider, uazapi_instance_id, uazapi_token_encrypted, display_name, webhook_path_token, ${ARCHIVED_AT}`),
+    () => buscar("id, provider, uazapi_instance_id, uazapi_token_encrypted, display_name, webhook_path_token"),
   );
   const session = sessionRaw as {
     id: string;
-    waha_session_name: string | null;
+    provider: string | null;
+    uazapi_instance_id: string | null;
+    uazapi_token_encrypted: string | null;
+    display_name: string | null;
+    webhook_path_token: string | null;
     archived_at?: string | null;
   } | null;
   if (!session) return fail("not_found", t("Canal não encontrado."), 404, { requestId });
@@ -108,13 +102,7 @@ export async function POST(
       { requestId },
     );
   }
-  // O nome da sessão é NULL no canal oficial, e o CHECK
-  // `channel_sessions_provider_ref_check` garante que só nele. Afirmar `string`
-  // aqui (era um cast) não fazia o valor existir: mandava `null` para o
-  // transporte, que pedia `/api/sessions/null/stop` e devolvia erro de serviço —
-  // culpando o WhatsApp por uma pergunta que nunca fez sentido.
-  const nomeSessao = session.waha_session_name;
-  if (!nomeSessao) {
+  if (session.provider !== "uazapi" || !session.uazapi_instance_id) {
     return fail(
       "channel_without_session",
       t("Este canal é o oficial (API da plataforma): ele não tem sessão de WhatsApp para reiniciar. Se parou de entregar, atualize a credencial na tela do canal oficial."),
@@ -123,44 +111,68 @@ export async function POST(
     );
   }
 
-  const waha = getWahaClient();
-  if (!waha) {
-    return fail(
-      "waha_not_configured",
-      t("O WhatsApp (WAHA) não está configurado neste ambiente: faltam WAHA_API_BASE_URL e/ou WAHA_API_KEY. Configure-as e tente de novo."),
-      503,
-      { requestId },
-    );
+  const admin = createAdminClient();
+  const tokenExistente = session.uazapi_token_encrypted
+    ? await decryptWebhookSecret(admin, session.uazapi_token_encrypted)
+    : null;
+
+  // Path token do webhook preservado (não invalida o que já está registrado
+  // do outro lado); segredo novo, porque é ele que vai embutido na URL que
+  // re-registramos agora mesmo.
+  const pathToken = session.webhook_path_token ?? randomBytes(16).toString("hex");
+  const segredoWebhook = randomBytes(32).toString("hex");
+  const segredoCifrado = await encryptWebhookSecret(admin, segredoWebhook);
+  if (!segredoCifrado) {
+    return fail("invalid_request", t("cifra indisponível nesta instalação"), 422, { requestId });
   }
+  const configurada = env.NEXT_PUBLIC_APP_URL;
+  const baseInstalacao = (
+    (configurada && !configurada.includes("placeholder.invalid") ? configurada : null) ??
+    req.headers.get("origin") ??
+    `${req.nextUrl.protocol}//${req.nextUrl.host}`
+  ).replace(/\/+$/, "");
+  const webhookUrl = `${baseInstalacao}/api/v1/webhooks/channel/${pathToken}?secret=${encodeURIComponent(segredoWebhook)}`;
 
-  try {
-    await assertWahaConnectionIdle(createAdminClient(), activeOrg.orgId, id);
-    await waha.stopSession(nomeSessao);
-    // Só no modo forçado: descartar a credencial é irreversível — obriga a
-    // reescanear o QR mesmo que ela ainda estivesse boa.
-    if (force) await waha.logoutSession(nomeSessao);
-    const remote = (await waha.startSession(nomeSessao)) as { status?: string };
-    const nextStatus = remote.status ?? "STARTING";
-    const patch = { status: nextStatus, status_reason: null, last_status_change_at: new Date().toISOString(), consecutive_health_fails: 0 };
-    const { error: syncError } = await supabase.from("channel_sessions").update(patch).eq("organization_id", activeOrg.orgId).eq("id", id);
-
-    if (syncError) throw new Error("connection_sync_failed");
-
-    void audit({
-      action: "channel.reconnected",
-      actorUserId: user.id,
-      organizationId: activeOrg.orgId,
-      resourceType: "channel_session",
-      resourceId: id,
-      requestId,
-      metadata: { waha_session_name: nomeSessao, force },
-    });
-
-    return ok({ id, status: nextStatus, force }, { requestId });
-  } catch (err) {
-    if (err instanceof ChannelConnectionError) return fail(err.code, "Uma conexão está em andamento. Aguarde e tente novamente.", err.status, { requestId });
+  const provisionado = await provisionUazapiInstance({
+    webhookUrl,
+    webhookSecret: segredoWebhook,
+    existingInstanceToken: tokenExistente,
+    displayName: session.display_name ?? UAZAPI_CHANNEL_LABEL,
+  });
+  if (!provisionado.ok) {
     await supabase.from("channel_sessions").update({ status: "FAILED", status_reason: "connection_repair_required", last_status_change_at: new Date().toISOString() })
       .eq("organization_id", activeOrg.orgId).eq("id", id);
-    return fail("waha_error", wahaFriendlyError(err), 502, { requestId });
+    return fail("uazapi_error", provisionado.reason, 502, { requestId });
   }
+
+  const tokenCifrado = await encryptWebhookSecret(admin, provisionado.instanceToken);
+  if (!tokenCifrado) {
+    return fail("invalid_request", t("cifra indisponível nesta instalação"), 422, { requestId });
+  }
+
+  const nextStatus = provisionado.status.toUpperCase();
+  const { error } = await saveUazapiSession(admin, {
+    organizationId: activeOrg.orgId,
+    existingId: session.id,
+    instanceId: provisionado.instanceId,
+    instanceTokenEncrypted: tokenCifrado,
+    webhookPathToken: pathToken,
+    webhookSecretEncrypted: segredoCifrado,
+    phoneNumber: null,
+    displayName: session.display_name ?? UAZAPI_CHANNEL_LABEL,
+    status: nextStatus,
+  });
+  if (error) return fail("internal_error", error, 500, { requestId });
+
+  void audit({
+    action: "channel.reconnected",
+    actorUserId: user.id,
+    organizationId: activeOrg.orgId,
+    resourceType: "channel_session",
+    resourceId: id,
+    requestId,
+    metadata: { provider: "uazapi", force },
+  });
+
+  return ok({ id, status: nextStatus, force }, { requestId });
 }
