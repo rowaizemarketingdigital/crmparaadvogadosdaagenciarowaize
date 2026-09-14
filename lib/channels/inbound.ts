@@ -49,6 +49,13 @@ export interface InboundWebhookInput {
   rawBody: string;
   /** Todos os headers da requisição — cada canal lê o SEU. */
   headers: Headers;
+  /**
+   * A query string da requisição — existe porque a UAZAPI não tem como
+   * assinar corpo nem mandar header custom no webhook que ELA chama (só URL);
+   * pra esse canal o segredo só pode viajar embutido na própria URL
+   * registrada. Os outros dois canais (HMAC no corpo) não precisam disto.
+   */
+  searchParams: URLSearchParams;
   /** Segredo já decifrado pela rota, ou null quando não foi possível. */
   secret: string | null;
 }
@@ -109,7 +116,13 @@ async function uazapiInbound(
   if (!input.secret || input.secret.length < MIN_SECRET_LEN) {
     return { ok: false, code: "unauthorized", message: "webhook_secret_unavailable" };
   }
-  if (!verifyUazapiSecret(input.headers.get("x-webhook-secret"), input.secret)) {
+  // Header primeiro (caso uma instância futura da UAZAPI passe a suportar
+  // header custom no webhook), query string como caminho CONFIRMADO hoje —
+  // é o que `uazapi-connect` do Studio CRM embute na URL registrada
+  // (`?secret=...`), porque `instance/updateWebhook` não aceita header nem
+  // corpo de assinatura, só a URL em si.
+  const fornecido = input.headers.get("x-webhook-secret") ?? input.searchParams.get("secret");
+  if (!verifyUazapiSecret(fornecido, input.secret)) {
     return { ok: false, code: "unauthorized", message: "bad_secret" };
   }
 

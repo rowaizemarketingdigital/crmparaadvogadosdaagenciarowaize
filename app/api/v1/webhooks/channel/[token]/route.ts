@@ -118,6 +118,7 @@ export async function POST(
       session: sessao,
       rawBody,
       headers: req.headers,
+      searchParams: req.nextUrl.searchParams,
       secret,
     });
 
