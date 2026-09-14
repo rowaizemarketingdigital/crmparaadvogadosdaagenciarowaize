@@ -34,7 +34,7 @@ function baseCtx(overrides: Partial<GateContext> = {}): GateContext {
     now: COMERCIAL,
     body: 'oi',
     optedOut: false,
-    provider: 'waha',
+    provider: 'uazapi',
     pacing: {
       knobs: PACING_DEFAULTS,
       state: { lastSentAt: null, sentToday: 0, numberActivatedAt: null },
@@ -62,7 +62,7 @@ describe('gate de pacing respeita a capability do canal', () => {
   });
 
   it('em canal COM risco de ban, o gate avalia normalmente', () => {
-    const v = pacingGate.evaluate(baseCtx({ provider: 'waha' }));
+    const v = pacingGate.evaluate(baseCtx({ provider: 'uazapi' }));
     expect(v.pass).toBe(true);
     if (!v.pass) throw new Error('inalcançável');
     expect(v.skipped).toBeUndefined();
@@ -75,7 +75,7 @@ describe('gate de pacing respeita a capability do canal', () => {
       crmDailyLimit: null,
       rng: () => 0,
     };
-    const waha = pacingGate.evaluate(baseCtx({ provider: 'waha', pacing: estourado }));
+    const waha = pacingGate.evaluate(baseCtx({ provider: 'uazapi', pacing: estourado }));
     expect(waha.pass).toBe(false);
 
     const meta = pacingGate.evaluate(baseCtx({ provider: 'meta_cloud', pacing: estourado }));

@@ -38,7 +38,7 @@ describe("capabilities do canal intermediado", () => {
   });
 
   it("não herda o perfil do canal por QR — o que muda é o risco, e errar aqui desarma o anti-ban", () => {
-    const porQr = CHANNEL_CAPABILITIES.waha;
+    const porQr = CHANNEL_CAPABILITIES.uazapi;
     expect(capabilitiesOf(ZERNIO).banRisk).toBe(false);
     expect(porQr.banRisk).toBe(true);
     expect(capabilitiesOf(ZERNIO).requiresTemplates).not.toBe(porQr.requiresTemplates);
@@ -73,7 +73,7 @@ describe("identificador da sessão", () => {
   });
 
   it("cada canal resolve pela SUA coluna — nenhum cai na do outro", () => {
-    expect(resolveSessionRef({ provider: "waha", waha_session_name: "s1" })).toBe("s1");
+    expect(resolveSessionRef({ provider: "uazapi", uazapi_instance_id: "s1" })).toBe("s1");
     expect(
       resolveSessionRef({ provider: "meta_cloud", meta_phone_number_id: "pn1" }),
     ).toBe("pn1");

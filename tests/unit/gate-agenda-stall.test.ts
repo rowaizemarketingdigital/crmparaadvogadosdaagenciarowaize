@@ -27,7 +27,7 @@ function baseCtx(overrides: Partial<GateContext> = {}): GateContext {
     now: new Date("2026-08-29T13:57:00Z"),
     body: "",
     optedOut: false,
-    provider: "waha",
+    provider: "uazapi",
     pacing: {
       knobs: PACING_DEFAULTS,
       state: { lastSentAt: null, sentToday: 0, numberActivatedAt: null },

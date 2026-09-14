@@ -63,11 +63,11 @@ describe("capability", () => {
   });
 
   it("o canal por QR declara que NÃO — não há WABA por trás", () => {
-    expect(capabilitiesOf("waha").canManageTemplates).toBe(false);
+    expect(capabilitiesOf("uazapi").canManageTemplates).toBe(false);
   });
 
   it("é distinta de requiresTemplates: exigir template e poder criá-lo são coisas diferentes", () => {
-    const qr = capabilitiesOf("waha");
+    const qr = capabilitiesOf("uazapi");
     expect(qr.requiresTemplates).toBe(false);
     expect(qr.canManageTemplates).toBe(false);
     // O par que prova a independência: exige template E deixa criar.

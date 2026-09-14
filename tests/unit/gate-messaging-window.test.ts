@@ -16,7 +16,7 @@ function baseCtx(over: Partial<GateContext> = {}): GateContext {
     now: AGORA,
     body: "oi",
     optedOut: false,
-    provider: "waha",
+    provider: "uazapi",
     pacing: {
       knobs: PACING_DEFAULTS,
       state: { lastSentAt: null, sentToday: 0, numberActivatedAt: null },
@@ -37,7 +37,7 @@ describe("gate messaging_window", () => {
     // avaliado; o que muda é o veredito. É a diferença entre "não regrediu" e
     // "consigo provar que não regrediu" (invariante 4 da doutrina).
     const v = messagingWindowGate.evaluate(
-      baseCtx({ provider: "waha", messagingWindow: { lastInboundAt: horasAtras(99) } }),
+      baseCtx({ provider: "uazapi", messagingWindow: { lastInboundAt: horasAtras(99) } }),
     );
     expect(v.pass).toBe(true);
     if (!v.pass) throw new Error("inalcançável");

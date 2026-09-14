@@ -29,7 +29,7 @@ import { fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { loadAuthUser, requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import type { AuthUser } from "@/lib/auth/types";
-import { CHANNEL_PROVIDER_META, CHANNEL_PROVIDER_WAHA } from "@/lib/channels/capabilities";
+import { CHANNEL_PROVIDER_META, CHANNEL_PROVIDER_UAZAPI } from "@/lib/channels/capabilities";
 import { reactivateChannelSession } from "@/lib/channels/reactivate";
 import { validateMetaCredentials } from "@/lib/channels/meta/validate-credentials";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -108,7 +108,7 @@ function canalQr(over: Linha = {}): Linha {
   return {
     id: CANAL,
     organization_id: ORG,
-    provider: CHANNEL_PROVIDER_WAHA,
+    provider: CHANNEL_PROVIDER_UAZAPI,
     waha_session_name: NOME_SESSAO,
     display_name: "Vendas",
     phone_number: "+5531999998888",

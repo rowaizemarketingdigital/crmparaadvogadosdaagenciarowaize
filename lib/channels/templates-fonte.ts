@@ -38,8 +38,10 @@ export type FonteDeTemplates = "oficial" | "parceiro";
  */
 const FONTE: Record<ChannelProvider, FonteDeTemplates | null> = {
   // Manda texto livre a qualquer hora: não há definição a listar, e um seletor
-  // ali ofereceria solução para um problema que este canal não tem.
-  waha: null,
+  // ali ofereceria solução para um problema que este canal não tem. Mesmo
+  // perfil que o WAHA tinha (ver capabilities.ts) — categoria não muda com a
+  // troca de provider.
+  uazapi: null,
   meta_cloud: "oficial",
   zernio: "parceiro",
 };

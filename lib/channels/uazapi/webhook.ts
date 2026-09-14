@@ -206,7 +206,7 @@ export function extrairAtribuicaoUazapi(msgRaw: unknown): {
   titulo: null;
   corpo: null;
   sourceUrl: null;
-  bruto: unknown;
+  bruto: Bruto;
 } | null {
   const msg = obj(msgRaw) ?? {};
   const content = obj(msg.content) ?? {};

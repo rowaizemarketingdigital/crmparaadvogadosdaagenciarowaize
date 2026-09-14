@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AGENT_TOOL_DEFS } from "@/lib/agent-engine/agent/inbound-turn";
-import { CHANNEL_PROVIDER_META, CHANNEL_PROVIDER_WAHA, capabilitiesOf } from "@/lib/channels/capabilities";
+import { CHANNEL_PROVIDER_META, CHANNEL_PROVIDER_UAZAPI, capabilitiesOf } from "@/lib/channels/capabilities";
 
 /**
  * A LIGAÇÃO do `send_template` no turno do agente.
@@ -65,7 +65,7 @@ describe("send_template — a tool só existe onde o canal a exige", () => {
   it("a matriz sustenta a decisão: WAHA não exige template, Cloud API exige", () => {
     // Se esta expectativa inverter, o gate acima continua correto e o comportamento
     // muda junto — que é exatamente o ponto de decidir por capability.
-    expect(capabilitiesOf(CHANNEL_PROVIDER_WAHA).requiresTemplates).toBe(false);
+    expect(capabilitiesOf(CHANNEL_PROVIDER_UAZAPI).requiresTemplates).toBe(false);
     expect(capabilitiesOf(CHANNEL_PROVIDER_META).requiresTemplates).toBe(true);
   });
 

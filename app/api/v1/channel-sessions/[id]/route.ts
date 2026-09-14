@@ -18,7 +18,6 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  *
  * Qualquer membro da org pode consultar. organization_id vem da sessão.
  */
-import { assertWahaConnectionIdle, ChannelConnectionError } from "@/lib/channels/connect-waha";
 import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 
@@ -26,12 +25,17 @@ import { audit } from "@/lib/audit";
 import { ok, fail } from "@/lib/api/wrappers";
 import { loadAuthUser, mfaEmDivida, resolveActiveOrg } from "@/lib/auth/server";
 import { requireRole } from "@/lib/auth/require-role";
-import { CHANNEL_PROVIDER_WAHA } from "@/lib/channels/capabilities";
-import { numeroObservadoDaSessao } from "@/lib/channels/numero-observado";
+import {
+  CHANNEL_SESSION_REF_COLUMNS,
+  DEFAULT_CHANNEL_PROVIDER,
+  getAdapter,
+  resolveSessionRef,
+  type ChannelProvider,
+  type ChannelSessionRef,
+} from "@/lib/channels";
 import { isChannelStatus } from "@/lib/schemas/channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -138,7 +142,7 @@ export async function GET(
   const supabase = await createClient();
   const { data: session } = await supabase
     .from("channel_sessions")
-    .select("id, provider, waha_session_name, display_name, phone_number, status")
+    .select(`id, display_name, phone_number, status, ${CHANNEL_SESSION_REF_COLUMNS}`)
     .eq("organization_id", activeOrg.orgId)
     .eq("id", id)
     .maybeSingle();
@@ -152,31 +156,31 @@ export async function GET(
     impact ? { ...corpo, deletion_impact: impact } : corpo;
 
   if (user.support?.access_mode === "support_readonly") return ok(comImpacto({ ...session, waha_configured: false }), { requestId });
-  const waha = getWahaClient();
-  // Canal oficial não tem sessão no transporte para consultar — `waha_session_name`
-  // é NULL nele por CHECK, e perguntar assim mesmo pediria `/api/sessions/null`.
-  const nomeSessao =
-    session.provider === CHANNEL_PROVIDER_WAHA ? session.waha_session_name : null;
-  if (!waha || !nomeSessao) {
-    // Nada a checar ao vivo (transporte fora do ar, ou canal que não vive nele):
-    // devolve o que está no DB, sinalizando que o estado não foi confirmado agora.
+
+  // Pergunta ao CANAL, não ao provider (mesmo padrão do vigia de saúde em
+  // app/api/v1/cron/channel-health/route.ts): quem tem sessão para consultar
+  // implementa `checkHealth`; canal oficial não expõe, e esta rota nunca
+  // pergunta QUEM ele é. `waha_configured`/`waha_session_name` no corpo da
+  // resposta são nomes de campo herdados (contrato com o front) — não
+  // significam mais "é WAHA", significam "tem sessão viva pra checar".
+  const adapter = getAdapter(
+    ((session as { provider?: string }).provider ?? DEFAULT_CHANNEL_PROVIDER) as ChannelProvider,
+  );
+  const sessionRef = resolveSessionRef(session as unknown as ChannelSessionRef);
+  if (!adapter.checkHealth || !sessionRef) {
+    // Nada a checar ao vivo (canal sem sessão no transporte): devolve o que
+    // está no DB, sinalizando que o estado não foi confirmado agora.
     return ok(comImpacto({ ...session, waha_configured: false }), { requestId });
   }
 
   let liveStatus = session.status as string;
   let phoneNumber = session.phone_number as string | null;
   try {
-    const remote = await waha.getVerifiedSession(nomeSessao);
-    liveStatus = remote?.status ?? "STOPPED";
-    // O número vem do JID (`<phone>@c.us`), e a regra de quando ele VALE mora
-    // em `numeroObservadoDaSessao` — inclusive por que não basta gravar sempre.
-    // O que havia aqui só preenchia a coluna VAZIA, então um re-pareamento com
-    // outro aparelho deixava o banco mentindo para sempre.
-    phoneNumber = numeroObservadoDaSessao({
-      jid: typeof remote?.me?.id === "string" ? remote.me.id : null,
-      statusAoVivo: liveStatus,
-      gravado: phoneNumber,
-    });
+    const saude = await adapter.checkHealth({ organizationId: activeOrg.orgId, sessionRef });
+    if (!saude.reachable) {
+      return fail("connection_status_failed", "Não foi possível conferir a conexão. Tente novamente.", 502, { requestId });
+    }
+    liveStatus = saude.status ?? liveStatus;
   } catch {
     return fail("connection_status_failed", "Não foi possível conferir a conexão. Tente novamente.", 502, { requestId });
   }
@@ -218,7 +222,6 @@ export async function GET(
   return ok(
     comImpacto({
       id: session.id,
-      waha_session_name: session.waha_session_name,
       display_name: session.display_name,
       phone_number: phoneNumber,
       status: liveStatus,
@@ -294,7 +297,7 @@ export async function DELETE(
   const supabase = await createClient();
   const { data: session } = await supabase
     .from("channel_sessions")
-    .select("id, provider, waha_session_name, display_name, phone_number")
+    .select("id, provider, display_name, phone_number")
     .eq("organization_id", activeOrg.orgId)
     .eq("id", id)
     .maybeSingle();
@@ -310,33 +313,20 @@ export async function DELETE(
     last_status_change_at: now,
   };
 
-  if (session.provider === CHANNEL_PROVIDER_WAHA) {
-    const waha = getWahaClient();
-    if (!waha) {
-      return fail(
-        "waha_not_configured",
-        t("O WhatsApp (WAHA) não está configurado neste ambiente (faltam WAHA_API_BASE_URL e/ou WAHA_API_KEY) — sem ele o número não pode ser desconectado do aparelho."),
-        503,
-        { requestId },
-      );
-    }
-    try {
-      await assertWahaConnectionIdle(createAdminClient(), activeOrg.orgId, id);
-      await waha.logoutSession(session.waha_session_name as string);
-      await waha.deleteSession(session.waha_session_name as string);
-    } catch (err) {
-      if (err instanceof ChannelConnectionError) return fail(err.code, "Uma conexão está em andamento. Aguarde e tente novamente.", err.status, { requestId });
-      await supabase.from("channel_sessions").update({ status: "FAILED", status_reason: "connection_repair_required", last_status_change_at: now })
-        .eq("organization_id", activeOrg.orgId).eq("id", id);
-      return fail("waha_error", wahaFriendlyError(err), 502, { requestId });
-    }
-  } else {
-    // Revogação do canal oficial: a credencial some e a URL do webhook muda, então
-    // o que a plataforma tem configurado do outro lado deixa de valer. Só faz
-    // sentido no ramo que PRESERVA a linha — no hard delete ela some inteira.
-    patch.meta_token_encrypted = null;
-    patch.webhook_path_token = randomUUID().replace(/-/g, "");
-  }
+  // Revogação por credencial (oficial, intermediado e não-oficial): a
+  // credencial (e a URL do webhook) somem, então o que a plataforma tem
+  // configurado do outro lado deixa de valer. `meta_token_encrypted` fica
+  // nulo pra quem já era nulo (canais que não são o oficial) — inofensivo.
+  // Só faz sentido no ramo que PRESERVA a linha — no hard delete ela some
+  // inteira.
+  //
+  // ⚠️ Não revoga do lado do PROVIDER externo (a instância UAZAPI continua
+  // existindo lá, só para de receber webhook desta instalação) — diferente
+  // do canal por QR do WAHA, que fazia logout ativo do aparelho. Revogação
+  // remota da UAZAPI (mirror de `uazapi-delete-instance` do Studio CRM)
+  // ainda não foi portada; fica como pendência conhecida.
+  patch.meta_token_encrypted = null;
+  patch.webhook_path_token = randomUUID().replace(/-/g, "");
 
   if (arquivar) {
     const { error: archErr } = await supabase
@@ -362,7 +352,6 @@ export async function DELETE(
     resourceId: id,
     requestId,
     metadata: {
-      waha_session_name: session.waha_session_name,
       phone_number: session.phone_number,
       provider: session.provider,
       ...impact.history,

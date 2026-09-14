@@ -17,7 +17,7 @@ import { bareWaMessageId, parseWahaMessageId } from "@/lib/waha/message-id";
 import { resolveWahaChatId } from "@/lib/waha/send";
 import type { FetchedMedia } from "@/lib/messaging/media/types";
 import { DETALHE_CREDENCIAL_RECUSADA } from "../health";
-import type { ChannelAdapter, ChannelHealth, OutboundEnvelope, RecipientInput } from "../types";
+import type { ChannelAdapter, ChannelHealth, ChannelProvider, OutboundEnvelope, RecipientInput } from "../types";
 
 /**
  * O HTTP que o WAHA devolveu, lido do PREFIXO da mensagem de erro.
@@ -39,7 +39,12 @@ export function statusHttpDoErroWaha(msg: string): number | null {
 }
 
 export const wahaAdapter: ChannelAdapter = {
-  provider: "waha",
+  // "waha" saiu de `ChannelProvider` (trocado por "uazapi" — ver
+  // supabase/migrations/*_canal_uazapi_no_lugar_do_waha.sql). Este adapter
+  // fica no repo como código morto, sem custo de manter (nada mais o
+  // importa — não está em `lib/channels/index.ts`); o cast é só pra ele
+  // continuar compilando como peça de referência.
+  provider: "waha" as ChannelProvider,
 
   resolveRecipient(input: RecipientInput): string | null {
     return resolveWahaChatId(input);
