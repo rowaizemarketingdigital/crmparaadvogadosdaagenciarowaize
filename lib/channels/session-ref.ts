@@ -1,18 +1,19 @@
 /**
  * De onde sai o identificador da sessão/número no provider.
  *
- * Esta é a pergunta que NÃO pode viver numa feature: com dois providers o
- * `sessionRef` vem de `waha_session_name` **ou** de `meta_phone_number_id`, e
- * quem escolher isso fora daqui vira o `if (provider === ...)` que o invariante
- * 1 da doutrina existe para proibir. O chamador pede o ref; a coluna é detalhe.
+ * Esta é a pergunta que NÃO pode viver numa feature: com três providers o
+ * `sessionRef` vem de `uazapi_instance_id`, de `meta_phone_number_id` **ou**
+ * de `zernio_account_id`, e quem escolher isso fora daqui vira o
+ * `if (provider === ...)` que o invariante 1 da doutrina existe para proibir.
+ * O chamador pede o ref; a coluna é detalhe.
  *
- * O tipo é a tagged union que a migration 0087 já enforça no banco
- * (`channel_sessions_provider_ref_check`): a coluna do provider da vez é NOT
- * NULL, a do outro é NULL. Por isso o retorno é `string`, não `string | null` —
- * a garantia é do CHECK, não de otimismo.
+ * O tipo é a tagged union que a migration `channel_sessions_provider_ref_check`
+ * enforça no banco: a coluna do provider da vez é NOT NULL, as outras são
+ * NULL. Por isso o retorno é `string`, não `string | null` — a garantia é do
+ * CHECK, não de otimismo.
  */
 export type ChannelSessionRef =
-  | { provider: "waha"; waha_session_name: string }
+  | { provider: "uazapi"; uazapi_instance_id: string }
   | { provider: "meta_cloud"; meta_phone_number_id: string }
   | { provider: "zernio"; zernio_account_id: string };
 
@@ -22,14 +23,14 @@ export type ChannelSessionRef =
  * nomeia coluna de provider, e ela some da feature junto com a decisão.
  */
 export const CHANNEL_SESSION_REF_COLUMNS =
-  "provider, waha_session_name, meta_phone_number_id, zernio_account_id";
+  "provider, uazapi_instance_id, meta_phone_number_id, zernio_account_id";
 
 export function resolveSessionRef(session: ChannelSessionRef): string {
   switch (session.provider) {
     case "meta_cloud":
       return session.meta_phone_number_id;
-    case "waha":
-      return session.waha_session_name;
+    case "uazapi":
+      return session.uazapi_instance_id;
     // O `accountId` que o provider devolve ao conectar a WABA. NÃO é o
     // phone_number_id da Meta: quem intermedeia guarda o número por dentro e
     // endereça pelo id dele. Mandar o id da Meta aqui responde 404.

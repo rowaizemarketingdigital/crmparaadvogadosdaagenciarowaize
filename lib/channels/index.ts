@@ -1,14 +1,21 @@
 /**
- * A porta de entrada do seam. Feature nenhuma importa `lib/waha/*` direto —
- * pede o adapter do provider da conversa e o descritor de capabilities.
+ * A porta de entrada do seam. Feature nenhuma importa `lib/uazapi/*` ou
+ * `lib/waha/*` direto — pede o adapter do provider da conversa e o descritor
+ * de capabilities.
+ *
+ * `lib/waha/*` e `adapters/waha.ts` continuam no repo (código morto, sem
+ * custo de manter) — não registrados aqui porque `"waha"` saiu de
+ * `ChannelProvider`. Ver decisão em `ARCHITECTURE.md`/histórico do PR: canal
+ * não-oficial trocado pelo UAZAPI, que é o que a agência já opera em produção
+ * no sistema irmão (Studio CRM).
  */
 import { metaCloudAdapter } from "./adapters/meta-cloud";
-import { wahaAdapter } from "./adapters/waha";
+import { uazapiAdapter } from "./adapters/uazapi";
 import { zernioAdapter } from "./adapters/zernio";
 import type { ChannelAdapter, ChannelProvider } from "./types";
 
 const ADAPTERS: Record<ChannelProvider, ChannelAdapter | null> = {
-  waha: wahaAdapter,
+  uazapi: uazapiAdapter,
   meta_cloud: metaCloudAdapter,
   zernio: zernioAdapter,
 };

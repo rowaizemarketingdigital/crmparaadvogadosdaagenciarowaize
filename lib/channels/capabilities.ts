@@ -12,13 +12,19 @@ export type { ChannelProvider, ChannelCapabilities };
 
 export const CHANNEL_CAPABILITIES: Record<ChannelProvider, ChannelCapabilities> = {
   // Auto-restrição: falo quando quiser, mas o WhatsApp me bane se eu abusar.
-  waha: {
+  // Mesmo perfil que o WAHA tinha — UAZAPI é a mesma categoria de canal
+  // (WhatsApp Web automatizado via QR, não-oficial), só o provedor mudou.
+  uazapi: {
     freeformOutsideWindow: true,
     requiresTemplates: false,
     // Não há WABA por trás: não existe definição aprovada para gerir.
     canManageTemplates: false,
     banRisk: true,
     minIntervalMs: null,
+    // ⚠️ NÃO MEDIDO: herdado do perfil WAHA por categoria (mesmo tipo de
+    // canal), não conferido contra a UAZAPI real — os três endpoints
+    // verificados no Studio CRM (texto, mídia, status) nunca precisaram
+    // mandar áudio como nota de voz. Testar antes de confiar em produção.
     voiceNote: "server-convert",
     groups: "full",
     costPerMessage: false,
@@ -73,21 +79,22 @@ export const CHANNEL_CAPABILITIES: Record<ChannelProvider, ChannelCapabilities> 
 
 /**
  * O que assumir quando o banco NÃO diz qual é o canal — só quando a linha de
- * `channel_sessions` não pôde ser lida (a coluna é `not null default 'waha'`,
- * então uma sessão que existe sempre responde).
+ * `channel_sessions` não pôde ser lida (a coluna passa a ser
+ * `not null default 'uazapi'` a partir da migration que troca o WAHA pela
+ * UAZAPI — ver `supabase/migrations/`), então uma sessão que existe sempre
+ * responde.
  *
- * Espelha o default da coluna de propósito: é o que mantém o comportamento
- * idêntico ao dos literais que as Tasks 4b/5 deixaram no código. E é o canal
- * CONSERVADOR dos dois — banRisk armado, throttle e warm-up ligados; errar para
- * o lado do meta_cloud desarmaria o anti-ban num número que pode ser banido.
+ * Espelha o default da coluna de propósito. E é o canal CONSERVADOR dos três
+ * — banRisk armado, throttle e warm-up ligados; errar para o lado do
+ * meta_cloud/zernio desarmaria o anti-ban num número que pode ser banido.
  */
-export const DEFAULT_CHANNEL_PROVIDER: ChannelProvider = "waha";
+export const DEFAULT_CHANNEL_PROVIDER: ChannelProvider = "uazapi";
 
 /**
  * Constantes nomeadas dos providers. Existem para que nenhum arquivo fora deste
  * módulo precise escrever a string — é o que o `scripts/lint-channels.ts` cobra.
  */
-export const CHANNEL_PROVIDER_WAHA: ChannelProvider = "waha";
+export const CHANNEL_PROVIDER_UAZAPI: ChannelProvider = "uazapi";
 export const CHANNEL_PROVIDER_META: ChannelProvider = "meta_cloud";
 export const CHANNEL_PROVIDER_ZERNIO: ChannelProvider = "zernio";
 
