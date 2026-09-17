@@ -133,8 +133,21 @@ const PALAVRAS_ARQUITETURA = [
  * logo acima: provider novo entra na cobertura sozinho, e a lista não envelhece
  * mentindo. `lib/channels/capabilities.ts` importa só tipos — não arrasta peso
  * para dentro deste módulo puro.
+ *
+ * ⚠️ `instagram` SAI da derivação, e é a MESMA razão do `api`/`backend`/`json`/
+ * `supabase` que já saíram de `PALAVRAS_ARQUITETURA` acima: zero vazamento
+ * medido, falso-positivo medido na hora — a calibração já tinha
+ * `instagram.com/loja_da_ana` (uma URL de cliente) como caso que NÃO pode
+ * barrar (`tests/unit/vazamento-interno-detector.test.ts`), e essa regressão
+ * foi pega adicionando o canal Instagram (Fase 3) a `CHANNEL_CAPABILITIES`.
+ * `uazapi`/`zernio`/`meta_cloud` são nomes de fornecedor/protocolo que
+ * nenhum cliente diz por acaso; `instagram` é o nome real e público do
+ * produto que o cliente MENCIONA o tempo todo ("me manda no instagram",
+ * "vi no instagram.com/..."). A mesma proteção de endereço/arquivo
+ * (`pareceEnderecoOuArquivo`) já cobre a forma de URL; o que faltava era não
+ * arrastar a palavra crua pra dentro da alternância genérica de provider.
  */
-const PROVIDERES_DE_CANAL = Object.keys(CHANNEL_CAPABILITIES);
+const PROVIDERES_DE_CANAL = Object.keys(CHANNEL_CAPABILITIES).filter((p) => p !== 'instagram');
 
 /**
  * (C) PAPEL/PERMISSÃO — o vocabulário de controle de acesso. Nenhuma destas é palavra

@@ -10,12 +10,10 @@
  * de todo canal, `lib/channels/arquivo-de-webhook.ts`) ANTES de interpretar —
  * corpo perdido é recuperável pelo arquivo; processamento perdido, não.
  *
- * ⚠️ ESCOPO DESTA FATIA: recebe, verifica, faz parse e arquiva. NÃO cria
- * contato nem dispara automação ainda — mapear identidade do Instagram
- * (IGSID) pro modelo de "um cadastro só por cliente" (que hoje é
- * inteiramente construído em torno de telefone, `canonicalPhoneBR`) é uma
- * decisão de design que ainda não foi tomada, não um esquecimento. Ver nota
- * no commit. Automação por palavra-chave é a próxima fatia.
+ * ⚠️ ESCOPO DESTA FATIA: recebe, verifica, faz parse, arquiva e resolve o
+ * CONTATO (migration 0238 — mesmo cadastro único, identidade própria por
+ * `instagram_id`). NÃO cria conversa/mensagem nem dispara automação ainda —
+ * essas são as próximas fatias, e dependem de contato já resolvido.
  */
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
@@ -23,8 +21,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { fail } from "@/lib/api/wrappers";
 import { abrirArquivoDoWebhook, fecharArquivoDoWebhook } from "@/lib/channels/arquivo-de-webhook";
 import { CHANNEL_PROVIDER_INSTAGRAM } from "@/lib/channels/capabilities";
+import { ingestInstagramInbound } from "@/lib/channels/instagram/ingest";
 import { instagramSessionByWebhookToken } from "@/lib/channels/instagram/session";
 import { parseInstagramWebhook, verificationChallenge, verifyMetaSignature } from "@/lib/channels/instagram/webhook";
+import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -83,13 +83,22 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
 
   const eventos = parseInstagramWebhook(envelope).filter((e) => e.businessId === session.businessId);
 
-  // Escopo desta fatia (ver cabeçalho): só conta e arquiva. Cada evento seria
-  // aqui o ponto de entrada pra criar/atualizar contato e avaliar automação,
-  // quando essa fatia futura for construída.
+  const desfechos: string[] = [];
+  for (const evento of eventos) {
+    const r = await ingestInstagramInbound(admin, evento, { organizationId: session.organizationId });
+    desfechos.push(r.status);
+    if (r.status === "failed") {
+      logger.error("[instagram.ingest] contato não resolvido", {
+        reason: r.reason,
+        kind: evento.kind,
+      });
+    }
+  }
+
   await fecharArquivoDoWebhook(admin, arquivoId, { status: "processed", validSignature: true });
 
-  // 200 sempre que a assinatura confere, mesmo pra evento que ainda não
-  // processamos — mesma razão do webhook do WhatsApp Cloud: reentrega em
-  // backoff por horas é pior que reconhecer e não agir ainda.
-  return NextResponse.json({ received: eventos.length }, { status: 200 });
+  // 200 sempre que a assinatura confere, mesmo pra desfecho que falhou em
+  // resolver contato — mesma razão do webhook do WhatsApp Cloud: reentrega em
+  // backoff por horas é pior que uma falha pontual já registrada no log.
+  return NextResponse.json({ received: eventos.length, outcomes: desfechos }, { status: 200 });
 }
