@@ -585,6 +585,15 @@ export const NAV_CATALOG = [
     minRole: "manager",
   },
   {
+    href: "/app/settings/autonomia",
+    label: "Autonomia dos agentes",
+    description: "Quanto cada agente executa sozinho antes de pedir sua aprovação.",
+    icon: "Robot",
+    group: "organizacao",
+    section: "Sua empresa",
+    minRole: "manager",
+  },
+  {
     href: "/app/settings/tenant",
     label: "Organização",
     description: "Dados da empresa, retenção de dados e encarregado de LGPD.",

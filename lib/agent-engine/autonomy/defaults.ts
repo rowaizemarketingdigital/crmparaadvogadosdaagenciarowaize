@@ -92,3 +92,19 @@ export const DEFAULT_AUTONOMY_LEVEL: Record<AgentKey, AutonomyLevel> = {
 export function isAgentKey(value: string): value is AgentKey {
   return (AGENT_KEYS as readonly string[]).includes(value);
 }
+
+/** Nome em pt-BR de cada agente — coluna "Agente" da tabela da seção 8 da auditoria. */
+export const AGENT_LABELS: Record<AgentKey, string> = {
+  atendimento: "Atendimento",
+  qualificacao_comercial: "Qualificação comercial",
+  gestao_crm: "Gestão do CRM",
+  coordenacao_tarefas: "Coordenação de tarefas/prazos",
+  briefings_alinhamentos: "Briefings e alinhamentos",
+  metricas_gargalos: "Métricas e gargalos",
+  trafego_campanhas: "Tráfego e campanhas",
+  automacao_instagram: "Automação Instagram",
+  financeiro_operacional: "Financeiro operacional",
+  suporte_sucesso_cliente: "Suporte e sucesso do cliente",
+  revisao_tecnica: "Revisão técnica/PRs",
+  manutencao_plataforma: "Manutenção da plataforma",
+};
