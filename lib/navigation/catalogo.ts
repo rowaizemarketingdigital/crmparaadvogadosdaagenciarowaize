@@ -594,6 +594,15 @@ export const NAV_CATALOG = [
     minRole: "manager",
   },
   {
+    href: "/app/settings/acessos",
+    label: "Acesso por módulo",
+    description: "Restringe a visão de alguém só ao módulo/recurso que é da função dela.",
+    icon: "Lock",
+    group: "organizacao",
+    section: "Sua empresa",
+    minRole: "manager",
+  },
+  {
     href: "/app/settings/tenant",
     label: "Organização",
     description: "Dados da empresa, retenção de dados e encarregado de LGPD.",
