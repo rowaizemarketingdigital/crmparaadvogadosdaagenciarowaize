@@ -75,6 +75,29 @@ export const CHANNEL_CAPABILITIES: Record<ChannelProvider, ChannelCapabilities> 
     groups: "limited",
     costPerMessage: true,
   },
+  // Auto-restrição, categoria diferente das duas de cima: não é a Meta que
+  // proíbe envio livre (não há WABA/template aqui, é DM comum), e não é
+  // "abusar do WhatsApp" que bane — é a própria Graph API do Instagram Login
+  // que limita por HORA CORRENTE (200 DM/h, medido no sistema real de
+  // automação — ver lib/agent-engine/pacing/defaults.ts). `minIntervalMs`
+  // fica null porque o teto real não é "intervalo mínimo entre mensagens", é
+  // contagem por janela — o `warmupHourlyCaps` da Fase 3 é quem carrega esse
+  // número, não esta capability.
+  instagram: {
+    freeformOutsideWindow: true,
+    requiresTemplates: false,
+    canManageTemplates: false,
+    banRisk: true,
+    minIntervalMs: null,
+    // ⚠️ NÃO MEDIDO: o sistema de referência nunca precisou mandar nota de
+    // voz por DM de Instagram — herdado por categoria, não conferido.
+    voiceNote: "server-convert",
+    // Instagram não tem "grupo" no sentido de WhatsApp — thread de DM é 1:1
+    // ou "grupo" só entre pessoas que já se seguem, fora do escopo desta
+    // automação (comentário→DM). `none` em vez de inventar suporte.
+    groups: "none",
+    costPerMessage: false,
+  },
 };
 
 /**
@@ -97,6 +120,7 @@ export const DEFAULT_CHANNEL_PROVIDER: ChannelProvider = "uazapi";
 export const CHANNEL_PROVIDER_UAZAPI: ChannelProvider = "uazapi";
 export const CHANNEL_PROVIDER_META: ChannelProvider = "meta_cloud";
 export const CHANNEL_PROVIDER_ZERNIO: ChannelProvider = "zernio";
+export const CHANNEL_PROVIDER_INSTAGRAM: ChannelProvider = "instagram";
 
 export function capabilitiesOf(provider: ChannelProvider): ChannelCapabilities {
   const caps = CHANNEL_CAPABILITIES[provider];

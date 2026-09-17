@@ -46,8 +46,13 @@
  * fica verde afirmando que a doutrina é respeitada enquanto o nome se espalha
  * por rota, componente e cópia de tela. Provider novo = uma linha aqui, no
  * mesmo commit.
+ *
+ * ⚠️ `uazapi` NÃO está aqui, e é dívida PRÉ-EXISTENTE achada de passagem ao
+ * acrescentar `instagram` (Fase 3) — não consertada nesta mudança porque não
+ * é o provider que esta tarefa está registrando, e medir o tamanho real do
+ * ofensor de `uazapi` é trabalho próprio, não um efeito colateral.
  */
-const SEPARADO = /(?<![a-zA-Z0-9])(waha|meta_cloud|zernio|graph\.facebook\.com)(?![a-zA-Z0-9])/i;
+const SEPARADO = /(?<![a-zA-Z0-9])(waha|meta_cloud|zernio|instagram|graph\.facebook\.com)(?![a-zA-Z0-9])/i;
 
 /**
  * Grafia PascalCase dentro de identificador: `WahaClient`,

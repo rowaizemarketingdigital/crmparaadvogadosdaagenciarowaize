@@ -9,7 +9,7 @@ import type { OutboundMedia } from "@/lib/waha/media-send";
 
 export type { OutboundMedia };
 
-export type ChannelProvider = "uazapi" | "meta_cloud" | "zernio";
+export type ChannelProvider = "uazapi" | "meta_cloud" | "zernio" | "instagram";
 
 export interface ChannelCapabilities {
   /** Pode enviar texto livre a qualquer momento? false = exige template fora da janela. */
@@ -293,6 +293,22 @@ export interface ChannelAdapter {
     /** Mime declarado no webhook, quando houve. Dica, não verdade. */
     hintMime?: string | null;
   }): Promise<FetchedMedia>;
+
+  /**
+   * Responde a um COMENTÁRIO público (Instagram, hoje) — não é `send()` porque
+   * não há "recipient" nenhum aqui: é uma resposta anexada a um
+   * `commentId`/`mediaId`, verbo e formato de wire diferentes de mandar DM.
+   *
+   * OPCIONAL como os demais: canal sem conceito de comentário público não
+   * implementa (nem faria sentido nele), e quem chama testa a presença em vez
+   * de perguntar QUAL provider é — mesma regra de `docs/doctrine/restricao-de-canal.md`
+   * que rege todo método opcional deste contrato.
+   */
+  replyToComment?(input: ChannelTenantScope & {
+    sessionRef: string;
+    commentId: string;
+    body: string;
+  }): Promise<{ externalId: string | null }>;
 
   sendTemplate?(input: ChannelTenantScope & {
     beforeSend?: () => Promise<void>;

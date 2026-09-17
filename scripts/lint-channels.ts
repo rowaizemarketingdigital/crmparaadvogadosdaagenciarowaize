@@ -93,10 +93,12 @@ const KNOWN_DEBT: { reason: string; files: string[] }[] = [
       "app/api/v1/onboarding/whatsapp/session/route.ts",
       "app/api/v1/webhooks/waha/[token]/route.ts",
       "app/api/v1/webhooks/waha/route.ts",
-      // (#118) Lê `process.env.WAHA_API_BASE_URL`/`WAHA_API_KEY` só para
-      // decidir se o transporte está configurado — o nome está no ENV, não
-      // numa pergunta de identidade. Sai quando o env virar config de canal.
-      "app/app/connections/page.tsx",
+      // `app/app/connections/page.tsx` SAIU desta lista: a troca WAHA→UAZAPI já
+      // renomeou a variável local pra `wahaConfigured` em minúscula-camelCase
+      // (preservando só o NOME DA PROP externa, que é a mesma dívida abaixo, na
+      // categoria de API pública) — não sobrou mais `WAHA_`/`waha_` com fronteira
+      // não-alfanumérica nem `Waha` em PascalCase, então o padrão atual não bate
+      // mais aqui. Catraca só encolhe.
       "app/onboarding/connect-whatsapp/page.tsx",
       "lib/agent-engine/edge/crm/session-reconciler.ts",
       "workers/media-persist-worker.ts",
@@ -174,6 +176,7 @@ const KNOWN_DEBT: { reason: string; files: string[] }[] = [
       "app/api/v1/conversations/[id]/media/route.ts",
       "app/api/v1/webhook-sources/route.ts",
       "app/api/v1/webhooks/in/[token]/route.ts",
+      "app/api/v1/channels/uazapi/route.ts",
       "app/app/ai/agents/[id]/_components/TestPanel.tsx",
       "components/inbox/media/media-utils.ts",
       "lib/agent-engine/channel-adapter.ts",
@@ -213,6 +216,53 @@ const KNOWN_DEBT: { reason: string; files: string[] }[] = [
       "o dicionário é espelho, não fonte. Sai junto com a Fase 3 do seam, quando " +
       "a cópia de tela na fonte deixar de nomear o provider.",
     files: ["lib/i18n/dicionario.ts"],
+  },
+  {
+    reason:
+      "Canal Instagram (Fase 3, seção 12 da auditoria) — `instagram` entrou em " +
+      "`SEPARADO` no mesmo commit que registra o provider. Superfície de " +
+      "TRANSPORTE, mesma categoria de `webhooks/waha/[token]` acima: é o " +
+      "próprio canal recebendo o webhook da Graph API, não uma feature " +
+      "perguntando identidade.",
+    files: ["app/api/v1/webhooks/instagram/[token]/route.ts"],
+  },
+  {
+    reason:
+      "Canal Instagram (Fase 3) — menção em COMENTÁRIO/prosa técnica, mesma " +
+      "categoria já registrada acima ('a decisão é registrar, não reescrever'). " +
+      "`autonomy/*` usa `automacao_instagram` como AGENT_KEY (rótulo de papel " +
+      "de negócio, seção 8 da auditoria — não pergunta de transporte). " +
+      "`pacing/*` explica POR QUE o teto por hora existe (o número real medido " +
+      "no sistema de automação de Instagram). `vazamento-interno.ts` explica " +
+      "por que `instagram` sai da derivação de nomes de provider — a própria " +
+      "explicação da exceção nomeia o que está excluindo.",
+    files: [
+      "lib/agent-engine/autonomy/defaults.ts",
+      "lib/agent-engine/autonomy/resolve.test.ts",
+      "lib/agent-engine/guardrails/vazamento-interno.ts",
+      "lib/agent-engine/pacing/defaults.ts",
+      "lib/agent-engine/pacing/engine.ts",
+      "lib/agent-engine/pacing/store.ts",
+    ],
+  },
+  {
+    reason:
+      "PRÉ-EXISTENTE, não relacionado ao canal — achado de passagem ao " +
+      "acrescentar `instagram` a `SEPARADO` (Fase 3). Em todo arquivo abaixo " +
+      "'instagram' é PALAVRA COMUM DE NEGÓCIO (valor de `utm_source`, campo de " +
+      "formulário de lead, rótulo de exemplo num guia de estilo de UI) — nunca " +
+      "referência ao transporte/provider que este projeto implementa. Mesma " +
+      "razão pela qual `instagram` saiu da derivação de " +
+      "`lib/agent-engine/guardrails/vazamento-interno.ts`: a palavra é real e " +
+      "comum, diferente de `waha`/`zernio`, que são nome de fornecedor que " +
+      "nenhum cliente diz por acaso.",
+    files: [
+      "app/design/sections/SectionPatterns.tsx",
+      "lib/automation/conditions.test.ts",
+      "lib/webhooks/inbound.test.ts",
+      "lib/webhooks/respondi.test.ts",
+      "lib/webhooks/respondi.ts",
+    ],
   },
 ];
 

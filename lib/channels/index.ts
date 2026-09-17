@@ -9,6 +9,7 @@
  * não-oficial trocado pelo UAZAPI, que é o que a agência já opera em produção
  * no sistema irmão (Studio CRM).
  */
+import { instagramAdapter } from "./adapters/instagram";
 import { metaCloudAdapter } from "./adapters/meta-cloud";
 import { uazapiAdapter } from "./adapters/uazapi";
 import { zernioAdapter } from "./adapters/zernio";
@@ -18,6 +19,7 @@ const ADAPTERS: Record<ChannelProvider, ChannelAdapter | null> = {
   uazapi: uazapiAdapter,
   meta_cloud: metaCloudAdapter,
   zernio: zernioAdapter,
+  instagram: instagramAdapter,
 };
 
 /**

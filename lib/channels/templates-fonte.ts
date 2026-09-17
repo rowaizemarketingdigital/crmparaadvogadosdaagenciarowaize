@@ -44,6 +44,9 @@ const FONTE: Record<ChannelProvider, FonteDeTemplates | null> = {
   uazapi: null,
   meta_cloud: "oficial",
   zernio: "parceiro",
+  // Mesmo motivo do uazapi: DM livre, sem definição aprovada nenhuma pra
+  // listar (capabilities.ts: requiresTemplates: false).
+  instagram: null,
 };
 
 /** `null` quando este canal não trabalha com definições aprovadas. */
