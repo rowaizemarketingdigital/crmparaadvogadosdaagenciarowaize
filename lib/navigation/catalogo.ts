@@ -173,6 +173,15 @@ export const NAV_CATALOG = [
     sidebar: true,
   },
   {
+    href: "/app/comissao",
+    label: "Comissão",
+    description: "Ganho mensal de cada vendedor — base, bônus e comissão por faixa sobre o mês.",
+    icon: "ChartBar",
+    group: "crm",
+    section: "O dia a dia da venda",
+    sidebar: true,
+  },
+  {
     href: "/app/contacts",
     label: "Contatos",
     description: "As pessoas do outro lado da conversa e seu histórico.",
