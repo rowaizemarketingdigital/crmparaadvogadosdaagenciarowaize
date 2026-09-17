@@ -93,6 +93,11 @@ export async function loadChannelKnobs(
       allowSunday: row.allow_sunday ?? PACING_DEFAULTS.allowSunday,
       timezone: row.timezone ?? PACING_DEFAULTS.timezone,
       warmupDailyCaps,
+      // `channel_knobs` ainda não tem coluna pra isto — `warmupHourlyCaps` só
+      // existe hoje vindo de `INSTAGRAM_PACING_DEFAULTS` (defaults.ts), aplicado
+      // por quem monta os knobs do canal Instagram. Override por sessão fica
+      // pra quando esse canal for construído de verdade (Fase 3), não inventado
+      // aqui sem um caso real pra validar a forma da coluna.
     },
     numberActivatedAt: row.number_activated_at,
   };
@@ -106,17 +111,24 @@ export async function loadPacingState(
   input: { now: Date; timezone: string; numberActivatedAt: Date | null },
 ): Promise<PacingState> {
   const dayStart = dayStartInTz(input.now, input.timezone);
-  const { rows } = await db.query<{ last_sent_at: Date | null; sent_today: string }>(
+  const hourStart = new Date(input.now.getTime() - 3_600_000);
+  const { rows } = await db.query<{
+    last_sent_at: Date | null;
+    sent_today: string;
+    sent_last_hour: string;
+  }>(
     `select max(sent_at) as last_sent_at,
-            count(*) filter (where sent_at >= $3) as sent_today
+            count(*) filter (where sent_at >= $3) as sent_today,
+            count(*) filter (where sent_at >= $4) as sent_last_hour
      from pacing_ledger
      where organization_id = $1 and channel_session_id = $2`,
-    [tenantId, channelSessionId, dayStart],
+    [tenantId, channelSessionId, dayStart, hourStart],
   );
   const row = rows[0];
   return {
     lastSentAt: row?.last_sent_at ?? null,
     sentToday: Number(row?.sent_today ?? 0),
+    sentLastHour: Number(row?.sent_last_hour ?? 0),
     numberActivatedAt: input.numberActivatedAt,
   };
 }

@@ -37,6 +37,16 @@ export interface PacingKnobs {
   timezone: string;
   /** Degraus de warm-up ordenados por minAgeDays crescente (o primeiro cobre idade 0). */
   warmupDailyCaps: WarmupStep[];
+  /**
+   * Teto por HORA corrente (não por dia) — ausente por padrão, porque nenhum
+   * canal existente (WhatsApp/UAZAPI/Zernio) tem essa forma de limite; o que
+   * eles têm é `warmupDailyCaps`. Existe pra canais cujo próprio provedor
+   * limita por hora, não por dia — caso confirmado do Instagram (ver
+   * `INSTAGRAM_PACING_DEFAULTS` abaixo, 200/hora é número real medido no
+   * sistema de origem, não estimativa). `undefined` = motor não checa hora
+   * nenhuma; comportamento de todo canal existente não muda.
+   */
+  warmupHourlyCaps?: WarmupStep[];
 }
 
 /**
@@ -70,4 +80,17 @@ export const PACING_DEFAULTS: PacingKnobs = {
     { minAgeDays: 15, cap: 200 },
     { minAgeDays: 31, cap: null },
   ],
+};
+
+/**
+ * Perfil de pacing do Instagram (Fase 3) — o único número aqui que não é
+ * conservador-por-convenção, é MEDIDO: 200 DM/hora é o `HOURLY_DM_CAP` real do
+ * sistema de automação de Instagram em produção (Robson/Rowaize), não uma
+ * estimativa. Sem degrau de warm-up por idade — a Graph API do Instagram
+ * limita por hora corrente, não por idade de conta, então um único degrau
+ * (`minAgeDays: 0`) cobre o teto inteiro.
+ */
+export const INSTAGRAM_PACING_DEFAULTS: PacingKnobs = {
+  ...PACING_DEFAULTS,
+  warmupHourlyCaps: [{ minAgeDays: 0, cap: 200 }],
 };

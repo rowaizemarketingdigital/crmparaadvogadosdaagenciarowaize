@@ -151,7 +151,7 @@ describe('o skipped do gate chega em before_send_traces', () => {
    * `pass` e isto fica vermelho.
    */
   async function rodaComProviderNoBanco(provider: string) {
-    // O cap ESTOURADO é o que torna a origem do provider observável: em 'waha' o
+    // O cap ESTOURADO é o que torna a origem do provider observável: em 'uazapi' o
     // anti-ban veta; em 'meta_cloud' ele desarma e o envio passa. Dentro da janela
     // comercial, para que a cortesia (que vale nos dois canais) não decida o
     // desfecho e mascare a diferença.
@@ -195,8 +195,8 @@ describe('o skipped do gate chega em before_send_traces', () => {
     expect(meta.status).toBe('sent');
     expect(meta.trace).toEqual([{ gate: 'pacing', verdict: 'skipped', code: 'not_applicable' }]);
 
-    const waha = await rodaComProviderNoBanco('waha');
-    expect(waha.status).toBe('vetoed');
-    expect(waha.trace[0]?.verdict).toBe('veto');
+    const uazapi = await rodaComProviderNoBanco('uazapi');
+    expect(uazapi.status).toBe('vetoed');
+    expect(uazapi.trace[0]?.verdict).toBe('veto');
   });
 });

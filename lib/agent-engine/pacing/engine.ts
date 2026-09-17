@@ -16,6 +16,8 @@ export interface PacingState {
   lastSentAt: Date | null;
   /** Envios deste número desde a meia-noite LOCAL do tenant. */
   sentToday: number;
+  /** Envios deste número na última hora corrida (now - 1h, now]. Só é OLHADO quando `knobs.warmupHourlyCaps` existe — canal sem esse knob nem precisa fornecer isto. */
+  sentLastHour?: number;
   /** Ativação do número (channel_knobs.number_activated_at); null = idade 0 (conservador). */
   numberActivatedAt: Date | null;
 }
@@ -45,7 +47,7 @@ export interface PacingInput {
   rng?: () => number;
 }
 
-export type PacingVetoCode = 'outside_window' | 'warmup_cap' | 'daily_cap';
+export type PacingVetoCode = 'outside_window' | 'warmup_cap' | 'daily_cap' | 'hourly_cap';
 
 export type PacingDecision =
   | { allow: true; waitMs: number }
@@ -98,6 +100,30 @@ export function decidePacing(input: PacingInput): PacingDecision {
         : `cap diário do número atingido (${effectiveCap}/dia, limite do CRM); ` +
           `agende para ${formatInTz(nextAllowedAt, knobs.timezone)} (próxima abertura + jitter)`,
     };
+  }
+
+  // Teto por hora — só existe pra quem tem o knob (Instagram, hoje). Roda
+  // DEPOIS do cap diário de propósito: se o diário já vetou, é essa razão que
+  // o operador precisa ver primeiro (mais restritiva, decide antes).
+  if (knobs.warmupHourlyCaps) {
+    const hCap = warmupCapFor(ageDays, knobs.warmupHourlyCaps);
+    const sentLastHour = state.sentLastHour ?? 0;
+    if (hCap !== null && sentLastHour >= hCap) {
+      // Janela DESLIZANTE (últimos 60min), não "desde o início da hora" — sem
+      // o timestamp de cada envio aqui (função pura, só recebe a contagem), o
+      // instante exato em que libera uma vaga não é calculável. +1h é o pior
+      // caso, nunca o real — falha para o lado conservador, nunca promete cedo
+      // demais.
+      const nextAllowedAt = addMs(now, 3_600_000);
+      return {
+        allow: false,
+        code: 'hourly_cap',
+        nextAllowedAt,
+        reason:
+          `cap por hora atingido (${hCap}/hora); tente novamente em até 1h ` +
+          `(janela deslizante — pode liberar antes)`,
+      };
+    }
   }
 
   let waitMs = 0;
